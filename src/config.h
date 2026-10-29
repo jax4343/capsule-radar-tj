@@ -47,12 +47,12 @@ static const float WEB_RANGE_KM[]   = {3 * NM_KM, 5 * NM_KM, 10 * NM_KM, 15 * NM
 #define SCREEN_CX           233
 #define SCREEN_CY           233
 #define RADAR_R_OUTER_PX    218            // outer ring radius in pixels
+#endif
 // Compass letters N/S/E/W: how far inside the outer ring each letter's centre sits. They ride
 // the rim and turn with the scope when the page's "Top of screen" is not north.
 #define ROSE_INSET_N_PX     13
 #define ROSE_INSET_S_PX     6
 #define ROSE_INSET_EW_PX    3
-#endif
 // radar sweep (radar_view.cpp draws it in LVGL; display.cpp's compositor draws it per pixel)
 #define SWEEP_PERIOD_MS     4800           // one revolution (LVGL sweep: the simulator)
 #define SWEEP_COMP_PERIOD_MS 4800          // one revolution when the compositor draws it (the device). Was 40000: a
