@@ -497,9 +497,10 @@ static bool refuseUnlessPageFetch() {
 
 static void handleRoot() {
     const int th = radar::theme();
-    // The page's own list (WEB_RANGE_KM, config.h) ends at 150 km: it once offered 250,
-    // which the feed query clamps to ADSB_QUERY_MAX_KM — the outer rings stayed empty.
-    // The value submitted stays in km (the device works in km); only the label is shown in
+    // The page's own list (WEB_RANGE_KM, config.h) is 3-50 nm; it once offered 250 km, which
+    // the feed query clamps to ADSB_QUERY_MAX_KM — the outer rings stayed empty.
+    // The value submitted stays in km, with decimals (3 nm is 5.556 km: whole km would drift
+    // it to 3.2 nm); the device works in km; only the label is shown in
     // the user's chosen distance unit so the config page matches the screen. A stored
     // range that isn't in the list (20 km from the zoom button) gets its own entry with its
     // exact value, so saving the form with the other fields leaves the range alone.
@@ -511,8 +512,8 @@ static void handleRoot() {
         const bool sel = fabsf(rkm - g_settings.rangeKm) < 0.05f;
         if (sel) rlisted = true;
         char o[72];
-        snprintf(o, sizeof(o), "<option value=%d%s>%.0f %s</option>",
-                 (int)(rkm + 0.5f), sel ? " selected" : "", rkm * ufac, uname);
+        snprintf(o, sizeof(o), "<option value=%.3f%s>%.0f %s</option>",
+                 rkm, sel ? " selected" : "", rkm * ufac, uname);
         ropts += o;
     }
     if (!rlisted) {

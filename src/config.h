@@ -9,7 +9,8 @@
 #define HOME_LON_DEFAULT -117.1611
 
 // ---------- Radar ----------
-#define RANGE_KM_DEFAULT    30.0f          // display range (outer ring). Query is wider, see below.
+#define NM_KM               1.852f         // kilometres per nautical mile
+#define RANGE_KM_DEFAULT    (15.0f * NM_KM) // display range (outer ring): 15 nm. Query is wider, see below.
 // Feed query radius = display range × MULT, clamped to [MIN, MAX]. Querying a bit wider than
 // the display shows off-range traffic as edge arrows. The floor MUST stay small: the old 50 km
 // floor made small display ranges still pull a huge aircraft list in busy airspace, which timed
@@ -17,15 +18,17 @@
 #define ADSB_QUERY_MULT     1.4f
 #define ADSB_QUERY_MIN_KM   12.0f
 #define ADSB_QUERY_MAX_KM   150.0f
-// Display-range presets. The zoom button on the scope cycles RANGE_STEPS_KM (up to 100 km);
-// the web page's <select> offers WEB_RANGE_KM, which goes on to RANGE_KM_MAX (150 km). Nothing
+// Display-range presets, in nautical miles (the device works in km internally). The zoom
+// button on the scope cycles RANGE_STEPS_KM; the web page's <select> offers WEB_RANGE_KM,
+// the same six: 3, 5, 10, 15, 25 and 50 nm. A range saved by an older install (30 km...) is kept
+// as it is, not snapped. Nothing
 // goes past 150: the feed query clamps to ADSB_QUERY_MAX_KM, so a wider range (the old
 // web-only 250 km) promised rings the feed never fills. A stored range outside
 // [RANGE_KM_MIN, RANGE_KM_MAX] is clamped at boot and on save; <= 0, NaN or inf becomes
 // RANGE_KM_DEFAULT (0 divides by zero in geo::projectToScreen).
-static const float RANGE_STEPS_KM[] = {10.0f, 20.0f, 30.0f, 50.0f, 100.0f};
-static const float WEB_RANGE_KM[]   = {10.0f, 15.0f, 25.0f, 30.0f, 50.0f, 100.0f, 150.0f};
-#define RANGE_KM_MIN        10.0f
+static const float RANGE_STEPS_KM[] = {3 * NM_KM, 5 * NM_KM, 10 * NM_KM, 15 * NM_KM, 25 * NM_KM, 50 * NM_KM};
+static const float WEB_RANGE_KM[]   = {3 * NM_KM, 5 * NM_KM, 10 * NM_KM, 15 * NM_KM, 25 * NM_KM, 50 * NM_KM};
+#define RANGE_KM_MIN        (3.0f * NM_KM)
 #define RANGE_KM_MAX        150.0f
 #define POLL_INTERVAL_MS    2000           // be gentle with the free API (>=1000)
 #define POLL_INTERVAL_BATTERY_MS 5000      // slower polling when running on battery

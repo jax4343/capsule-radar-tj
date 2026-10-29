@@ -4,6 +4,8 @@
 #include "web_input.h"
 
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 
 int main() {
     double v;
@@ -59,5 +61,25 @@ int main() {
     // that /save immediately changes.
     for (float s : WEB_RANGE_KM) assert(repairRangeKm(s) == s);
     for (float s : RANGE_STEPS_KM) assert(repairRangeKm(s) == s);
+
+    // The ranges are 3, 5, 10, 15, 25 and 50 nautical miles; the default is one of them.
+    static const float NM[] = {3, 5, 10, 15, 25, 50};
+    assert(sizeof(RANGE_STEPS_KM) / sizeof(RANGE_STEPS_KM[0]) == 6);
+    assert(sizeof(WEB_RANGE_KM) / sizeof(WEB_RANGE_KM[0]) == 6);
+    bool defaultListed = false;
+    for (int i = 0; i < 6; ++i) {
+        assert(fabsf(RANGE_STEPS_KM[i] - NM[i] * 1.852f) < 0.001f);
+        assert(WEB_RANGE_KM[i] == RANGE_STEPS_KM[i]);
+        if (RANGE_STEPS_KM[i] == RANGE_KM_DEFAULT) defaultListed = true;
+    }
+    assert(defaultListed);
+    // The page submits a range with 3 decimals; it must read back as the same preset
+    // (whole-km rounding turned 3 nm into 3.2 nm).
+    for (float s : WEB_RANGE_KM) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%.3f", s);
+        double back;
+        assert(parseDoubleStrict(buf, &back) && fabs(back - s) < 0.001);
+    }
     return 0;
 }

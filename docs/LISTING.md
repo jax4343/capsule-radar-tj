@@ -46,7 +46,7 @@ engraved logo. No soldering — the Waveshare board carries all the electronics.
   ground speed, distance, bearing, squawk, and the **origin → destination route**
   (looked up online and cached so the same flight isn't re-queried).
 - **Swipe** between three circular views: **Radar**, **List**, and **Stats**.
-- **On-screen zoom button** cycles the display range (10 / 20 / 30 / 50 / 100 km) and
+- **On-screen zoom button** cycles the display range (3 / 5 / 10 / 15 / 25 / 50 nm) and
   shows the current value.
 - **Long-press** the screen to cycle the visual theme.
 
