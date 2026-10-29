@@ -54,9 +54,9 @@ static const float WEB_RANGE_KM[]   = {3 * NM_KM, 5 * NM_KM, 10 * NM_KM, 15 * NM
 #define ROSE_INSET_EW_PX    3
 #endif
 // radar sweep (radar_view.cpp draws it in LVGL; display.cpp's compositor draws it per pixel)
-#define SWEEP_PERIOD_MS     8000           // one revolution (LVGL sweep)
-#define SWEEP_COMP_PERIOD_MS 40000         // one revolution when the compositor draws it (a slower sweep hides the
-                                           // brief pauses while LVGL rebuilds the scope after a poll)
+#define SWEEP_PERIOD_MS     4800           // one revolution (LVGL sweep: the simulator)
+#define SWEEP_COMP_PERIOD_MS 4800          // one revolution when the compositor draws it (the device). Was 40000: a
+                                           // slow sweep hides the brief pauses while LVGL rebuilds the scope after a poll
 #define SWEEP_FRAME_MS      30             // sweep tick
 #define SWEEP_TRAIL_DEG     38.0f          // fading trail behind the lead line
 #define SWEEP_TRAIL_STEPS   20             // LVGL sweep: lines in the trail
