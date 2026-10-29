@@ -79,7 +79,7 @@ static void sdl_mouse_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     s_touchReplaying = data->continue_reading;
 }
 
-// ---- mock ADS-B data (sim only): 6 aircraft near Dénia that drift along track --
+// ---- mock ADS-B data (sim only): 6 aircraft near the default location that drift along track --
 static std::vector<Aircraft> g_mockAcs;
 static std::vector<Aircraft> g_mockInit;
 static RadarSettings g_set;

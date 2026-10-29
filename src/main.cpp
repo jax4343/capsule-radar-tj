@@ -763,7 +763,7 @@ static void sendSaveError(const char *field) {
     String body = "<body style='background:#06100a;color:#ffb23c;font-family:sans-serif;padding:24px'>"
                   "Not saved: <b>";
     body += field;
-    body += "</b> must be a number like 38.8409 (dot or comma). "
+    body += "</b> must be a number like 32.7157 (dot or comma). "
             "<a href='/' style='color:#1dff86'>Back to settings</a></body>";
     g_web.send(400, "text/html", body);
 }

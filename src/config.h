@@ -3,10 +3,10 @@
 
 #define FW_VERSION "1.6.0"   // shown on the web config page + Stats screen; bump on release
 
-// ---------- Home location (default: Dénia, Spain) ----------
+// ---------- Home location (default: San Diego, California) ----------
 // Overridable at runtime via the captive portal (stored in NVS).
-#define HOME_LAT_DEFAULT   38.8409
-#define HOME_LON_DEFAULT    0.1059
+#define HOME_LAT_DEFAULT   32.7157
+#define HOME_LON_DEFAULT -117.1611
 
 // ---------- Radar ----------
 #define RANGE_KM_DEFAULT    30.0f          // display range (outer ring). Query is wider, see below.
@@ -74,7 +74,7 @@ static const float WEB_RANGE_KM[]   = {10.0f, 15.0f, 25.0f, 30.0f, 50.0f, 100.0f
 #define FACEDOWN_CHECK_MS   400
 #define FACEDOWN_COUNT      4
 #define FACEDOWN_THRESHOLD  9000           // ~0.55 g past zero, on the side opposite the resting pose
-#define TZ_STR              "CET-1CEST,M3.5.0,M10.5.0/3"  // POSIX TZ (Spain) for local time/date
+#define TZ_STR              "PST8PDT,M3.2.0,M11.1.0"  // POSIX TZ (US Pacific) for local time/date
 #define BRIGHTNESS_IDLE     25             // dimmed after no touch for IDLE_DIM_MS
 #define IDLE_DIM_MS         20000          // dim the screen after this long without a touch
 // Idle clock: instead of dimming, the radar animates into an analog clock (clock_face.h has

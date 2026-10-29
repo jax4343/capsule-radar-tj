@@ -36,7 +36,7 @@ LVGL needs `lv_conf.h` reachable on the include path. Easiest: copy from the Wav
 No secrets are committed. On first boot the captive portal collects the SSID/password only.
 The radar centre lat/lon (and range, theme, units, brightness…) is then set on the device's
 web page at `http://capsuleradar.local/` — it has a map picker. Defaults in `src/config.h`
-are Dénia (38.8409, 0.1059) — change as needed.
+are San Diego, CA (32.7157, -117.1611) and US Pacific time — change as needed.
 
 ## HTTPS note
 airplanes.live is HTTPS. For a hobby build, `WiFiClientSecure::setInsecure()` is fine. For production, pin the root CA. The choice is flagged in `adsb_client.cpp`.
