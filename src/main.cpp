@@ -20,6 +20,8 @@
 #include "cloud_image.h"
 #include "cloud_image_client.h"
 #include "radar_view.h"
+#include "compass.h"                 // which compass bearing is at the top of the scope
+#include "airport_pins.h"            // pinned airports typed on the config page
 #include "ui.h"
 #include "display.h"                  // M0: CO5300 + LVGL bring-up
 #include "imu_qmi8658.h"             // face-down sleep: accelerometer reads
@@ -79,6 +81,7 @@ static int                   g_lastView     = 0;                     // last act
 static bool                  g_bootedIntoPortal = false;             // saved WiFi absent at boot (e.g. car hotspot not up yet)
 static bool                  g_milOnly      = false;                 // only show military-flagged aircraft (web/NVS)
 static int                   g_rotation = 0;                         // clockwise display rotation, 0..359° (web/NVS)
+static char                  g_airportPins[AIRPORT_PIN_MAX * (AIRPORT_PIN_CODE + 1) + 1] = "";   // pinned airports, "ALC,VLC" (web/NVS)
 static bool                  g_useGps = false;                       // auto-set home from the LC76G GPS (-G variant) (web/NVS)
 static int                   g_trailLen = 2;                         // aircraft trails 0=off 1=short 2=med 3=long (web/NVS)
 static int                   g_maxAc = 20;                           // max aircraft drawn on the scope (web/NVS)
@@ -303,6 +306,7 @@ static void loadSettings() {
     // Repair a value that can't work: an old install may hold the 250 km the web page once
     // offered (clamped to 150) or even 0 (divides by zero in geo::projectToScreen).
     g_settings.rangeKm = repairRangeKm(p.getFloat("rangeKm", RANGE_KM_DEFAULT));
+    g_settings.rotationDeg = normalizeTopDeg(p.getInt("topDeg", 0));   // compass bearing at the top of the scope
     // floor of 5: a stored 0 would boot with the panel dark forever, looking like a dead board
     g_brightnessDay    = constrain(p.getInt("bright", BRIGHTNESS_DEFAULT), 5, 255);
     g_volume           = p.getInt("vol", 60);
@@ -544,6 +548,13 @@ static void handleRoot() {
         snprintf(o, sizeof(o), "<option value=%d%s>%s</option>", i, i == g_units ? " selected" : "", unames[i]);
         uopts += o;
     }
+    String topopts;   // compass direction at the top of the scope (g_settings.rotationDeg)
+    for (int i = 0; i < TOP_POINTS_N; ++i) {
+        char o[80];
+        snprintf(o, sizeof(o), "<option value=%d%s>%s</option>", TOP_POINTS[i].deg,
+                 TOP_POINTS[i].deg == (int)g_settings.rotationDeg ? " selected" : "", TOP_POINTS[i].name);
+        topopts += o;
+    }
     const char *tlnames[] = {"Off", "Short", "Medium", "Long"};
     String tlopts;
     for (int i = 0; i < 4; ++i) {
@@ -668,6 +679,9 @@ static void handleRoot() {
         "<label><input type=checkbox class=ck %s onchange='fd(this.checked)'>Screen off when placed face-down</label>"
         "<label><input type=checkbox class=ck %s onchange='sw(this.checked)'>Show radar sweep</label>"
         "<label><input type=checkbox class=ck %s onchange='ap(this.checked)'>Show airports</label>"
+        "<label>Pinned airports (3-letter IATA codes, up to 8)</label>"
+        "<input type=text maxlength=63 placeholder='e.g. ALC, VLC' value='%s' autocapitalize=characters onchange='pa(this.value)'>"
+        "<div id=apm style='font-size:12px;opacity:.6;margin:4px 0 0'>Always labelled on the scope, even with Show airports off.</div>"
         "<label><input type=checkbox class=ck %s onchange='hg(this.checked)'>Hide aircraft on the ground</label>"
         "<label>Minimum altitude</label><select onchange='ma(this.value)'>%s</select>"
         "<label>Maximum altitude</label><select onchange='mb(this.value)'>%s</select>"
@@ -675,6 +689,7 @@ static void handleRoot() {
         "<label>Aircraft trails</label><select onchange='tl(this.value)'>%s</select>"
         "<label>Max aircraft on screen</label><select onchange='mx(this.value)'>%s</select>"
         "<label><input type=checkbox class=ck %s onchange='bt(this.checked)'>Large text (restarts the device)</label>"
+        "<label>Top of screen (compass direction)</label><select onchange='td(this.value)'>%s</select>"
         "<label>Screen rotation (degrees clockwise)</label>"
         "<input type=number min=0 max=359 step=1 value='%d' onchange='ro(this.value)'>"
         "<label>Units</label><select onchange='u(this.value)'>%s</select></div>"
@@ -697,7 +712,7 @@ static void handleRoot() {
         "MK.on('dragend',function(){S(MK.getLatLng());});"
         "MAP.on('click',function(e){MK.setLatLng(e.latlng);S(e.latlng);});"
         "setTimeout(function(){MAP.invalidateSize();},300);"
-        "function G(p){fetch(p,{headers:{'" WEB_PAGE_HDR "':'1'}})}"
+        "function G(p){return fetch(p,{headers:{'" WEB_PAGE_HDR "':'1'}})}"
         "function b(v,s){G('/bright?v='+v+(s?'&save=1':''))}"
         "function v(x,s){G('/vol?v='+x+(s?'&save=1':''))}"
         "function m(c){G('/vol?mute='+(c?1:0)+'&save=1')}"
@@ -706,6 +721,9 @@ static void handleRoot() {
         "function fd(c){G('/fdsleep?v='+(c?1:0)+'&save=1')}"
         "function sw(c){G('/sweep?v='+(c?1:0)+'&save=1')}"
         "function ap(c){G('/airports?v='+(c?1:0)+'&save=1')}"
+        "function pa(v){G('/pinairports?v='+encodeURIComponent(v)+'&save=1').then(function(r){return r.text()})"
+        ".then(function(t){document.getElementById('apm').textContent=t})}"
+        "function td(v){G('/topdir?v='+v+'&save=1')}"
         "function hg(c){G('/ground?v='+(c?1:0)+'&save=1')}"
         "function ma(v){G('/altmin?v='+v+'&save=1')}"
         "function mb(v){G('/altmax?v='+v+'&save=1')}"
@@ -730,8 +748,8 @@ static void handleRoot() {
         g_settings.homeLat, g_settings.homeLon, gpsRow.c_str(), ropts.c_str(), topts.c_str(),
         tzopts.c_str(),
         g_brightnessDay, iopts.c_str(), g_clockOn ? "checked" : "", g_fdSleep ? "checked" : "", g_showSweep ? "checked" : "",
-        g_showAirports ? "checked" : "", g_hideGround ? "checked" : "", maopts.c_str(), mbopts.c_str(), g_milOnly ? "checked" : "",
-        tlopts.c_str(), mxopts.c_str(), g_bigText ? "checked" : "", g_rotation, uopts.c_str(),
+        g_showAirports ? "checked" : "", g_airportPins, g_hideGround ? "checked" : "", maopts.c_str(), mbopts.c_str(), g_milOnly ? "checked" : "",
+        tlopts.c_str(), mxopts.c_str(), g_bigText ? "checked" : "", topopts.c_str(), g_rotation, uopts.c_str(),
         g_volume, g_muted ? "checked" : "", aopts.c_str(), popts.c_str(),
         g_settings.homeLat, g_settings.homeLon, (g_tz == TZ_STR ? 0 : 1));
     if (len >= (int)BUFSZ)   // truncated page = broken <script>; make it loud, not silent
@@ -1022,6 +1040,48 @@ static void handleAirports() {   // show/hide airport markers (live)
     g_web.send(200, "text/plain", "ok");
 }
 
+// Pinned airports: parse, apply live, report back what matched (the page shows the text).
+static void handlePinAirports() {
+    if (refuseUnlessPageFetch()) return;
+    String msg;
+    if (g_web.hasArg("v")) {
+        const AirportPins pins = parseAirportPins(g_web.arg("v").c_str());
+        char missing[48];
+        const int n = radar::setPinnedAirports(pins, missing, sizeof(missing));
+        joinAirportPins(pins, g_airportPins, sizeof(g_airportPins));
+        if (g_web.hasArg("save")) {
+            Preferences p;
+            p.begin("capsuleradar", false);
+            p.putString("aptpin", g_airportPins);
+            p.end();
+        }
+        if (pins.count) msg = "Pinned " + String(n) + " of " + String(pins.count) + ".";
+        else            msg = "No airports pinned.";
+        if (missing[0]) msg += " Not in the airport table: " + String(missing) + ".";
+        if (pins.rejected) msg += " Ignored " + String(pins.rejected) + " invalid or extra entries.";
+    }
+    g_web.send(200, "text/plain", msg);
+}
+
+static void handleTopDir() {   // compass bearing at the top of the scope, applied live
+    if (refuseUnlessPageFetch()) return;
+    if (g_web.hasArg("v")) {
+        double v;
+        if (parseDoubleStrict(g_web.arg("v").c_str(), &v)) {
+            g_settings.rotationDeg = normalizeTopDeg(lround(v));
+            radar::update(g_snap, g_settings);   // re-project the map and aircraft now, not at the next poll
+            ui_on_data_updated();
+            if (g_web.hasArg("save")) {
+                Preferences p;
+                p.begin("capsuleradar", false);
+                p.putInt("topDeg", (int)g_settings.rotationDeg);
+                p.end();
+            }
+        }
+    }
+    g_web.send(200, "text/plain", "ok");
+}
+
 static void handleFdSleep() {   // face-down sleep (screen off when flipped over) on/off
     if (refuseUnlessPageFetch()) return;
     if (g_web.hasArg("v")) {
@@ -1175,6 +1235,10 @@ void setup() {
         g_maxAltFt = p.getInt("maxalt", 0);
         g_lastView = p.getInt("lastview", 0);
         g_milOnly = p.getBool("milonly", false);
+        {   // re-parse what NVS holds: a hand-edited or corrupt value can't reach the page or the scope unvetted
+            const AirportPins pins = parseAirportPins(p.getString("aptpin", "").c_str());
+            joinAirportPins(pins, g_airportPins, sizeof(g_airportPins));
+        }
         // Migrate the old quarter-turn setting (rot=0..3) without changing existing
         // installations' orientation. New firmware stores actual degrees separately.
         g_rotation = p.isKey("rotDeg") ? p.getInt("rotDeg", 0) : p.getInt("rot", 0) * 90;
@@ -1183,6 +1247,7 @@ void setup() {
         radar::setTheme(t);
         radar::setSweepEnabled(g_showSweep);
         radar::setAirportsEnabled(g_showAirports);
+        radar::setPinnedAirports(parseAirportPins(g_airportPins), nullptr, 0);
         g_adsb.setHideGround(g_hideGround);
         g_adsb.setMinAltFt((float)g_minAltFt);
         g_adsb.setMaxAltFt((float)g_maxAltFt);
@@ -1291,6 +1356,8 @@ void setup() {
     g_web.on("/fdsleep", handleFdSleep);
     g_web.on("/sweep", handleSweep);
     g_web.on("/airports", handleAirports);
+    g_web.on("/pinairports", handlePinAirports);
+    g_web.on("/topdir", handleTopDir);
     g_web.on("/ground", handleGround);
     g_web.on("/altmin", handleAltMin);
     g_web.on("/altmax", handleAltMax);

@@ -4,12 +4,13 @@
 #include <stdint.h>
 #include <vector>
 #include "aircraft.h"
+#include "airport_pins.h"
 #include "clock_face.h"
 
 struct RadarSettings {
     double homeLat, homeLon;
     float  rangeKm;
-    double rotationDeg = 0.0;   // 0 = north-up
+    double rotationDeg = 0.0;   // compass bearing at the top of the scope; 0 = north-up (compass.h)
     bool   mute = false;
 };
 
@@ -80,6 +81,9 @@ void setSweepCompositor(void (*config)(uint16_t ring565, uint16_t lead565, uint1
 bool sweepEnabled();
 void setAirportsEnabled(bool on);                // show/hide airport markers on the scope
 bool airportsEnabled();
+// Pin airports so they are always drawn with a label, even with the markers switched off.
+// Returns how many matched the airport table; the codes that did not go to `missing`.
+int  setPinnedAirports(const AirportPins &pins, char *missing, size_t missingLen);
 void setTrailLength(int level);                  // 0=off 1=short 2=medium 3=long (aircraft trails + flow)
 void setMaxOnScreen(int n);                       // how many (nearest) aircraft to draw on the scope
 void setLargeText(bool on);                       // accessibility: bigger glyph labels. Call BEFORE init()

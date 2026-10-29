@@ -6,7 +6,8 @@ Visual target: `assets/plane_radar_2.0_mockup.html`.
 - True-black AMOLED background; phosphor-green scope, glow on the sweep edge.
 - Concentric range rings + crosshair + N/E/S/W rose; outer-ring range label (e.g. "15 km").
 - Rotating sweep with a trailing alpha gradient.
-- Aircraft as **plane glyphs rotated by track/heading** (not dots).
+- Aircraft as **plane glyphs rotated by track/heading** (not dots), each labelled with callsign, altitude and, under the altitude, the ICAO type designator (B738, A320…) when the feed has one.
+- **Pinned airports** — type up to 8 three-letter IATA codes on the web page and they are always drawn with a label on the scope, even with "Show airports" off.
 - **Altitude color map**: ≤3k ft red → 3–10k amber → 10–20k lime → 20–30k green → 30k+ cyan.
 - **Fading trail** behind each aircraft (last N positions / direction tail).
 - Center "you" dot with a soft pulse.
@@ -16,7 +17,7 @@ Visual target: `assets/plane_radar_2.0_mockup.html`.
 1. **Touch to inspect** — tap nearest glyph → detail card: callsign, type, altitude, ground speed, vertical speed, distance, heading (the aircraft's ground track), squawk, and origin → destination. Registration on the card is *not built yet*.
 2. **Views** (swipe): Radar · List (sorted by distance) · Stats (count, closest, max altitude and range) · Weather. Tap an aircraft to open its detail card.
 3. **Range zoom** — the on-screen zoom button cycles 10 / 20 / 30 / 50 / 100 km and re-queries the aircraft feed accordingly. The web page offers 10 / 15 / 25 / 30 / 50 / 100 / 150 km.
-4. **Orientation** — north-up ↔ track-up toggle. *Not built yet: the scope is north-up only.*
+4. **Orientation** — the web page's "Top of screen" puts any of the eight compass directions at the top of the scope (default North). The map, airports, aircraft glyphs, trails, off-range arrows and the N/E/S/W letters all turn with it; the Weather view stays north-up. *A track-up mode (top follows the aircraft) is not built yet.*
 5. **Alerts** — highlight + speaker **ping** for emergency squawks (7500/7600/7700) and military (`dbFlags`). Card flashes red (see RESCUE51 in the mockup). A user watch-list of types (A380, B52…) is *not built yet*.
 6. **Idle clock** — after the "Clock or dim after" wait (web page) the radar animates into an analog clock (12/3/6/9 face): the sweep becomes the second hand, hour and minute hands grow out, the planes stay visible behind it, dimmed, at 70 % panel brightness. A touch (swallowed) or an in-range emergency squawk brings the radar back; a web switch falls back to the plain idle dim. Shown only on the radar view and once the time is known (RTC or NTP). **Night auto-dim** after dusk is *not built yet*.
 7. **IMU gestures** (QMI8658) — face-down → screen sleep; face-up or a touch → wake (a touch on the dark screen only wakes it). Shake-to-force-refresh is *not built yet*.

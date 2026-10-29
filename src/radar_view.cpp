@@ -87,6 +87,9 @@ static lv_obj_t  *s_rangeLbl  = nullptr;
 static bool       s_rangeLblVisible = true;
 static bool       s_sweepEnabled    = true;
 static bool       s_airportsEnabled = true;
+// the geometry the coastline/airports/trails were last projected for (see update())
+static double     s_projLat = 1e9, s_projLon = 1e9, s_projRot = 0.0;
+static float      s_projRange = -1.0f;
 static int        s_maxOnScreen     = 20;          // how many (nearest) aircraft to draw (web-configurable)
 static bool       s_bigText         = false;       // accessibility: bigger glyph labels (set before init)
 static int        s_units    = 0;           // scope altitude labels: 0 = ft · 1 = m (setUnits)
@@ -162,7 +165,8 @@ struct AcDraw {
     char       altTxt[12];
     float      altFt;
     bool       onGround;
-    float      vsFpm, gsKt, distKm, bearingDeg;
+    float      vsFpm, gsKt, distKm, bearingDeg;   // bearingDeg is the true bearing from home
+    float      scrDeg;                            // where that bearing lands on the screen (bearing - top)
     int        squawk;
     std::vector<lv_point_t> trail;
 };
@@ -296,7 +300,7 @@ static void grid_draw_cb(lv_event_t *e) {
         td.border_width = 1;
         td.border_opa = dim(160);
         coastline_draw(d, COAST_COLOR, dim(170), 2);    // landmass outline under the triangle
-        if (s_airportsEnabled) airports_draw(d, AIRPORT_COLOR, dim(150));
+        airports_draw(d, AIRPORT_COLOR, dim(150), s_airportsEnabled, ORB_ACCENT);
         lv_draw_polygon(d, &td, tri, 3);
         return;
     }
@@ -304,7 +308,7 @@ static void grid_draw_cb(lv_event_t *e) {
     // coastline first, so the rings/crosshair sit cleanly on top of it.
     // Steel blue + 2 px so it reads as a map outline, distinct from the green altitude trails.
     coastline_draw(d, COAST_COLOR, dim(165), 2);
-    if (s_airportsEnabled) airports_draw(d, AIRPORT_COLOR, dim(150));
+    airports_draw(d, AIRPORT_COLOR, dim(150), s_airportsEnabled, s_cInk);
 
     // phosphor: concentric rings + crosshair
     lv_draw_arc_dsc_t ad;
@@ -384,7 +388,7 @@ static void wedge_bbox(float deg, lv_area_t *out) {
 static inline lv_area_t glyph_bbox(lv_point_t p) {
     lv_area_t a;
     if (orb()) { a.x1 = p.x - 30; a.y1 = p.y - 30; a.x2 = p.x + 30;  a.y2 = p.y + 30; }
-    else          { a.x1 = p.x - 22; a.y1 = p.y - 22; a.x2 = p.x + 174; a.y2 = p.y + 32; }
+    else          { a.x1 = p.x - 22; a.y1 = p.y - 22; a.x2 = p.x + 174; a.y2 = p.y + 48; }
     return a;
 }
 static inline void area_union(lv_area_t &d, const lv_area_t &s) {
@@ -556,11 +560,11 @@ static void draw_offrange(lv_draw_ctx_t *d, const AcDraw &ac) {
     lv_draw_rect(d, &b, &r);
 
     // small orange triangle just outside it, pointing toward the aircraft's bearing
-    const lv_coord_t ox = (lv_coord_t)lroundf(ac.pos.x + 12.0f * sinf(ac.bearingDeg * (float)M_PI / 180.0f));
-    const lv_coord_t oy = (lv_coord_t)lroundf(ac.pos.y - 12.0f * cosf(ac.bearingDeg * (float)M_PI / 180.0f));
-    lv_point_t tri[3] = { rot_pt(0, -7, ac.bearingDeg, ox, oy),
-                          rot_pt(5, 4, ac.bearingDeg, ox, oy),
-                          rot_pt(-5, 4, ac.bearingDeg, ox, oy) };
+    const lv_coord_t ox = (lv_coord_t)lroundf(ac.pos.x + 12.0f * sinf(ac.scrDeg * (float)M_PI / 180.0f));
+    const lv_coord_t oy = (lv_coord_t)lroundf(ac.pos.y - 12.0f * cosf(ac.scrDeg * (float)M_PI / 180.0f));
+    lv_point_t tri[3] = { rot_pt(0, -7, ac.scrDeg, ox, oy),
+                          rot_pt(5, 4, ac.scrDeg, ox, oy),
+                          rot_pt(-5, 4, ac.scrDeg, ox, oy) };
     lv_draw_rect_dsc_t td;
     lv_draw_rect_dsc_init(&td);
     td.bg_color = ORB_ACCENT;
@@ -582,7 +586,8 @@ static void ac_draw_cb(lv_event_t *e) {
             }
         } else {
             draw_trail(d, ac, ac.color);
-            const float th = ((ac.track != ac.track) ? 0.0f : ac.track) * (float)M_PI / 180.0f;
+            // the glyph points along its ground track, turned with the scope (s_projRot is the top bearing)
+            const float th = (((ac.track != ac.track) ? 0.0f : ac.track) - (float)s_projRot) * (float)M_PI / 180.0f;
             const float c = cosf(th), s = sinf(th);
             lv_point_t pts[4];
             for (int i = 0; i < 4; ++i) {
@@ -636,6 +641,13 @@ static void ac_draw_cb(lv_event_t *e) {
             la.color = ac.color;
             lv_area_t a2 = { a1.x1, (lv_coord_t)(ac.pos.y + 4), a1.x2, (lv_coord_t)(ac.pos.y + 26) };
             if (ac.altTxt[0]) lv_draw_label(d, &la, &a2, ac.altTxt, NULL);
+            if (ac.type[0]) {                           // ICAO type designator (B738, A320...), under the altitude
+                lv_draw_label_dsc_t lt = la;
+                lt.color = s_cSoft;
+                const lv_coord_t y3 = (lv_coord_t)(a2.y1 + lv_font_get_line_height(la.font));
+                lv_area_t a3 = { a1.x1, y3, a1.x2, (lv_coord_t)(y3 + 22) };
+                lv_draw_label(d, &lt, &a3, ac.type, NULL);
+            }
         }
     });
 }
@@ -855,6 +867,15 @@ void setAirportsEnabled(bool on) {
 }
 bool airportsEnabled() { return s_airportsEnabled; }
 
+int setPinnedAirports(const AirportPins &pins, char *missing, size_t missingLen) {
+    const int n = airports_set_pinned(pins, missing, missingLen);
+    if (s_projRange > 0.0f) {      // scope already projected: rebuild the markers now, not at the next poll
+        airports_project(s_projLat, s_projLon, s_projRange, s_cx, s_cy, (float)RADAR_R_OUTER_PX, s_projRot);
+        if (s_gridLayer) lv_obj_invalidate(s_gridLayer);
+    }
+    return n;
+}
+
 // 0 = off, 1 = short, 2 = medium (default), 3 = long. Controls both the per-aircraft
 // trail and the persistent flow layer (the long-lived "where everything has been" tracks).
 void setTrailLength(int level) {
@@ -888,6 +909,19 @@ void setUnits(int preset) {
     s_units = u;
     for (AcDraw &a : s_acs) fmt_alt_txt(a.altTxt, sizeof(a.altTxt), a.altFt, a.onGround);
     if (s_acLayer) lv_obj_invalidate(s_acLayer);
+}
+
+// N/S/E/W on the rim where their bearings fall with `topDeg` at the top. At 0 this is the
+// classic layout (N up, E right).
+static void place_rose(double topDeg) {
+    static const int   inset[4]   = { ROSE_INSET_N_PX, ROSE_INSET_S_PX, ROSE_INSET_EW_PX, ROSE_INSET_EW_PX };
+    static const float bearing[4] = { 0.0f, 180.0f, 90.0f, 270.0f };   // N, S, E, W (s_rose order)
+    for (int i = 0; i < 4; ++i) {
+        if (!s_rose[i]) continue;
+        const float a = (bearing[i] - (float)topDeg) * (float)M_PI / 180.0f;
+        const float r = (float)(RADAR_R_OUTER_PX - inset[i]);
+        lv_obj_align(s_rose[i], LV_ALIGN_CENTER, (lv_coord_t)lroundf(r * sinf(a)), (lv_coord_t)lroundf(-r * cosf(a)));
+    }
 }
 
 void init(void *lv_parent) {
@@ -927,6 +961,7 @@ void init(void *lv_parent) {
     s_rose[1] = make_label(parent, "S", &lv_font_montserrat_16, COL_SOFT, LV_ALIGN_BOTTOM_MID, 0, -12);
     s_rose[2] = make_label(parent, "E", &lv_font_montserrat_16, COL_SOFT, LV_ALIGN_RIGHT_MID, -12, 0);
     s_rose[3] = make_label(parent, "W", &lv_font_montserrat_16, COL_SOFT, LV_ALIGN_LEFT_MID,   12, 0);
+    place_rose(s_projRot);
 
     char rng[16];
     snprintf(rng, sizeof(rng), "%.0f km", (double)RANGE_KM_DEFAULT);
@@ -977,17 +1012,20 @@ void update(const std::vector<Aircraft> &aircraft, const RadarSettings &s) {
     const float R = (float)RADAR_R_OUTER_PX;
     ++s_flowGen;                                  // one tick per poll; flow segments age in these units
 
-    // Reproject the coastline only when the scope geometry actually changes (home
-    // moved or range zoomed) — never per frame. Then repaint the static chrome layer.
-    static double s_coLat = 1e9, s_coLon = 1e9; static float s_coRange = -1.0f;
-    if (s.homeLat != s_coLat || s.homeLon != s_coLon || s.rangeKm != s_coRange) {
-        const bool firstFix = (s_coRange < 0.0f);
-        s_coLat = s.homeLat; s_coLon = s.homeLon; s_coRange = s.rangeKm;
-        coastline_project(s.homeLat, s.homeLon, s.rangeKm, s_cx, s_cy, R);
-        airports_project(s.homeLat, s.homeLon, s.rangeKm, s_cx, s_cy, R);
+    // Reproject the coastline and airports only when the scope geometry actually changes (home
+    // moved, range zoomed, or the top bearing turned) — never per frame. Then repaint the
+    // static chrome layer.
+    if (s.homeLat != s_projLat || s.homeLon != s_projLon || s.rangeKm != s_projRange ||
+        s.rotationDeg != s_projRot) {
+        const bool firstFix = (s_projRange < 0.0f);
+        s_projLat = s.homeLat; s_projLon = s.homeLon; s_projRange = s.rangeKm; s_projRot = s.rotationDeg;
+        coastline_project(s.homeLat, s.homeLon, s.rangeKm, s_cx, s_cy, R, s.rotationDeg);
+        airports_project(s.homeLat, s.homeLon, s.rangeKm, s_cx, s_cy, R, s.rotationDeg);
+        place_rose(s.rotationDeg);
         if (s_gridLayer) lv_obj_invalidate(s_gridLayer);
+        if (s_acLayer)   lv_obj_invalidate(s_acLayer);    // glyphs are drawn turned with the scope
         if (!firstFix) {
-            // Scope scale/center changed: old trails were plotted at the previous
+            // Scope scale/center/orientation changed: old trails were plotted at the previous
             // projection and would be wrong now — drop them and clear the flow layer.
             s_trails.clear();
             s_flow.clear();
@@ -1037,6 +1075,7 @@ void update(const std::vector<Aircraft> &aircraft, const RadarSettings &s) {
         d.gsKt = ac.gs;
         d.distKm = (float)distKm;
         d.bearingDeg = (float)brg;
+        d.scrDeg = (float)(brg - s.rotationDeg);
         d.squawk = ac.squawk;
         fmt_alt_txt(d.altTxt, sizeof(d.altTxt), ac.altBaro, ac.onGround);
 

@@ -46,7 +46,7 @@ animation.
 - `Preferences` (NVS), namespace `capsuleradar`; keys read in `main.cpp`: `homeLat`, `homeLon`,
   `rangeKm`, `bright`, `vol`, `mute`, `alertmode`, `proxkm`, `usegps`, `traillen`, `maxac`,
   `idledim`, `fdsleep`, `clock`, `units`, `tz`, `bigtext`, `theme` (long-press or the web page),
-  `sweep`, `airports`, `hideground`, `minalt`, `maxalt`, `milonly`, `lastview`, `rotDeg` (older
+  `sweep`, `airports`, `aptpin` (pinned airports, "ALC,VLC"), `topDeg` (compass bearing at the top of the scope), `hideground`, `minalt`, `maxalt`, `milonly`, `lastview`, `rotDeg` (older
   installs: `rot`). The route cache has its own namespace, `routes` (`route_client.cpp`).
 - First boot without saved credentials opens the WiFiManager captive portal (WiFi only; the
   centre lat/lon and every other setting are configured on the device's web page). A held
