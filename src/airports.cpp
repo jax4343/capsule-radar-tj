@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-struct Apt { lv_point_t pos; char iata[4]; uint8_t large; uint8_t pinned; };
+struct Apt { lv_point_t pos; char iata[4]; char icao[5]; uint8_t large; uint8_t pinned; };
 static std::vector<Apt> s_apts;
 static std::vector<int> s_pinIdx;    // table indices of the pinned airports
 
@@ -15,11 +15,16 @@ int airports_set_pinned(const AirportPins &pins, char *missing, size_t missingLe
     if (missing && missingLen) missing[0] = 0;
     size_t w = 0;
     for (int k = 0; k < pins.count; ++k) {
+        const char *code = pins.code[k];
+        const size_t len = strlen(code);
         int found = -1;
-        if (strlen(pins.code[k]) == 3) {                 // the table holds IATA codes only
-            for (int i = 0; i < AIRPORT_NUM; ++i) {
-                if (strcmp(AIRPORT_IATA[i], pins.code[k]) == 0) { found = i; break; }
-            }
+        if (len == 3) {                                  // IATA first, then an ICAO-style id, then FAA "PAO" = "KPAO"
+            for (int i = 0; i < AIRPORT_NUM && found < 0; ++i) if (strcmp(AIRPORT_IATA[i], code) == 0) found = i;
+            for (int i = 0; i < AIRPORT_NUM && found < 0; ++i) if (strcmp(AIRPORT_ICAO[i], code) == 0) found = i;
+            char faa[5] = { 'K', code[0], code[1], code[2], 0 };
+            for (int i = 0; i < AIRPORT_NUM && found < 0; ++i) if (strcmp(AIRPORT_ICAO[i], faa) == 0) found = i;
+        } else {
+            for (int i = 0; i < AIRPORT_NUM && found < 0; ++i) if (strcmp(AIRPORT_ICAO[i], code) == 0) found = i;
         }
         if (found >= 0) { s_pinIdx.push_back(found); continue; }
         if (missing && w + strlen(pins.code[k]) + 2 <= missingLen) {
@@ -48,6 +53,7 @@ void airports_project(double homeLat, double homeLon, double rangeKm,
         const double lat = AIRPORT_LAT[i] / (double)AIRPORT_SCALE;
         const double lon = AIRPORT_LON[i] / (double)AIRPORT_SCALE;
         const double dlon = lon - homeLon;
+        if (AIRPORT_KIND[i] == 2 && !is_pinned(i)) continue;                // pin-only: shown only when pinned
         if (fabs(lat - homeLat) > latMargin) continue;                      // cheap bbox reject
         if (fabs(dlon) > lonMargin && fabs(fabs(dlon) - 360.0) > lonMargin) continue;
         const double dist = geo::haversineKm(homeLat, homeLon, lat, lon);
@@ -59,7 +65,8 @@ void airports_project(double homeLat, double homeLon, double rangeKm,
         ap.pos.x = (lv_coord_t)lroundf((float)(cx + rPx * sin(a)));
         ap.pos.y = (lv_coord_t)lroundf((float)(cy - rPx * cos(a)));
         memcpy(ap.iata, AIRPORT_IATA[i], 4);
-        ap.large = AIRPORT_LARGE[i];
+        memcpy(ap.icao, AIRPORT_ICAO[i], 5);
+        ap.large = AIRPORT_KIND[i] == 1;
         ap.pinned = is_pinned(i) ? 1 : 0;
         s_apts.push_back(ap);
     }
@@ -111,7 +118,7 @@ void airports_draw(lv_draw_ctx_t *ctx, lv_color_t color, lv_opa_t opa,
         lv_draw_rect(ctx, &dot, &d);
         lv_area_t la = { (lv_coord_t)(ap.pos.x + 9), (lv_coord_t)(ap.pos.y - 8),
                          (lv_coord_t)(ap.pos.x + 52), (lv_coord_t)(ap.pos.y + 8) };
-        lv_draw_label(ctx, &lbl, &la, ap.iata, NULL);
+        lv_draw_label(ctx, &lbl, &la, ap.iata[0] ? ap.iata : ap.icao, NULL);
     }
 }
 

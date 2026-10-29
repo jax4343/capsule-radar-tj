@@ -7,7 +7,7 @@ Visual target: `assets/plane_radar_2.0_mockup.html`.
 - Concentric range rings + crosshair + N/E/S/W rose; outer-ring range label (e.g. "15 km").
 - Rotating sweep with a trailing alpha gradient.
 - Aircraft as **plane glyphs rotated by track/heading** (not dots), each labelled with callsign, altitude and, under the altitude, the ICAO type designator (B738, A320…) when the feed has one.
-- **Pinned airports** — type up to 8 three-letter IATA codes on the web page and they are always drawn with a label on the scope, even with "Show airports" off.
+- **Pinned airports** — type up to 8 IATA or ICAO codes (e.g. SFO, KPAO) on the web page and they are always drawn with a label on the scope, even with "Show airports" off.
 - **Altitude color map**: ≤3k ft red → 3–10k amber → 10–20k lime → 20–30k green → 30k+ cyan.
 - **Fading trail** behind each aircraft (last N positions / direction tail).
 - Center "you" dot with a soft pulse.

@@ -13,7 +13,7 @@ void airports_project(double homeLat, double homeLon, double rangeKm,
                       float cx, float cy, float rOuterPx, double rotationDeg = 0.0);
 
 // Airports the user pinned on the config page. Matched against the embedded table by IATA
-// code; a pinned airport is always drawn with its label, whatever its size. Returns how
+// or ICAO code (a 3-letter US FAA id such as PAO also finds KPAO); a pinned airport is always drawn with its label, whatever its size. Returns how
 // many matched; the codes that did not are written to `missing` (space-separated, may be
 // null). Call airports_project() afterwards to rebuild the markers.
 int airports_set_pinned(const AirportPins &pins, char *missing, size_t missingLen);
