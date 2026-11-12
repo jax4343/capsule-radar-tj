@@ -73,6 +73,7 @@ static bool                  g_fdSleep = true;                       // face-dow
 static bool                  g_clockOn = true;                       // idle clock instead of the idle dim (web/NVS)
 static bool                  g_showSweep = true;                     // rotating sweep line on/off (web/NVS)
 static int                   g_units = 0;                            // 0=Aviation 1=Metric 2=Imperial (web/NVS)
+static int                   g_tempUnit = 0;                         // weather temp: 0=follow Units 1=°C 2=°F (web/NVS)
 static bool                  g_showAirports = true;                  // airport markers on/off (web/NVS)
 static bool                  g_hideGround   = false;                 // skip on-ground aircraft in the feed (web/NVS)
 static int                   g_minAltFt     = 0;                     // only show aircraft above this altitude, ft (0 = off) (web/NVS)
@@ -147,7 +148,9 @@ static void adsb_task(void*) {
             // disable WiFi modem power-save: on a mains-powered desk gadget it just adds latency
             // and makes RSSI bounce (feed goes stale -> amber bars) even sitting next to the router.
             WiFi.setSleep(false);
-            Serial.printf("[adsb] WiFi up, IP %s\n", WiFi.localIP().toString().c_str());
+            Serial.printf("[adsb] WiFi up, IP %s (AP %s, ch %d, %d dBm)\n",
+                          WiFi.localIP().toString().c_str(), WiFi.BSSIDstr().c_str(),
+                          (int)WiFi.channel(), (int)WiFi.RSSI());
             configTzTime(g_tz.c_str(), "pool.ntp.org", "time.nist.gov");  // local time (web-configurable TZ)
             Serial.println("[web] config: http://capsuleradar.local/  (or the IP above)");
             nextWeatherAt = millis() + 5000UL; // let the first ADS-B poll complete before weather TLS
@@ -320,6 +323,7 @@ static void loadSettings() {
     g_fdSleep          = p.getBool("fdsleep", true);
     g_clockOn          = p.getBool("clock", true);
     g_units            = p.getInt("units", 0);
+    g_tempUnit         = p.getInt("tempu", 0);
     g_tz               = p.getString("tz", TZ_STR);
     g_bigText          = p.getBool("bigtext", false);
     p.end();
@@ -389,7 +393,7 @@ static void onRangeChange(float km) {
     ui_on_data_updated();
 }
 
-// Persist the visual theme in NVS (called when the user long-presses to switch).
+// Persist the visual theme in NVS (called when the user holds the radar to switch it).
 static void saveTheme(int t) {
     Preferences p;
     p.begin("capsuleradar", false);
@@ -495,6 +499,13 @@ static bool refuseUnlessPageFetch() {
     return refuseIfCrossSite();
 }
 
+// A buzzer has no level (BOARD_HAS_BUZZER ignores the volume), so its page has no slider.
+#if BOARD_HAS_BUZZER
+#define VOL_HIDE " hidden"
+#else
+#define VOL_HIDE ""
+#endif
+
 static void handleRoot() {
     const int th = radar::theme();
     // The page's own list (WEB_RANGE_KM, config.h) is 3-50 nm; it once offered 250 km, which
@@ -542,7 +553,7 @@ static void handleRoot() {
         iopts += o;
     }
     { char o[64]; snprintf(o, sizeof(o), "<option value=0%s>Never</option>", curIdle == 0 ? " selected" : ""); iopts += o; }
-    const char *unames[] = {"Aviation (ft, kt, nm)", "Metric (m, km/h, km)", "Imperial (ft, mph, mi)"};
+    const char *unames[] = {"Aviation (ft, kt, nm, \xC2\xB0" "C)", "Metric (m, km/h, km, \xC2\xB0" "C)", "Imperial (ft, mph, mi, \xC2\xB0" "F)"};
     String uopts;
     for (int i = 0; i < 3; ++i) {
         char o[96];
@@ -555,6 +566,13 @@ static void handleRoot() {
         snprintf(o, sizeof(o), "<option value=%d%s>%s</option>", TOP_POINTS[i].deg,
                  TOP_POINTS[i].deg == (int)g_settings.rotationDeg ? " selected" : "", TOP_POINTS[i].name);
         topopts += o;
+    }
+    const char *tunames[] = {"Same as Units", "\xC2\xB0" "C", "\xC2\xB0" "F"};
+    String tuopts;
+    for (int i = 0; i < 3; ++i) {
+        char o[64];
+        snprintf(o, sizeof(o), "<option value=%d%s>%s</option>", i, i == g_tempUnit ? " selected" : "", tunames[i]);
+        tuopts += o;
     }
     const char *tlnames[] = {"Off", "Short", "Medium", "Long"};
     String tlopts;
@@ -693,10 +711,11 @@ static void handleRoot() {
         "<label>Top of screen (compass direction)</label><select onchange='td(this.value)'>%s</select>"
         "<label>Screen rotation (degrees clockwise)</label>"
         "<input type=number min=0 max=359 step=1 value='%d' onchange='ro(this.value)'>"
-        "<label>Units</label><select onchange='u(this.value)'>%s</select></div>"
+        "<label>Units</label><select onchange='u(this.value)'>%s</select>"
+        "<label>Weather temperature</label><select onchange='tu(this.value)'>%s</select></div>"
         "<div class=card><div class=t>Sound</div>"
-        "<label>Volume</label>"
-        "<input type=range min=0 max=100 value='%d' oninput='v(this.value,0)' onchange='v(this.value,1)'>"
+        "<div" VOL_HIDE "><label>Volume</label>"
+        "<input type=range min=0 max=100 value='%d' oninput='v(this.value,0)' onchange='v(this.value,1)'></div>"
         "<label><input type=checkbox class=ck %s onchange='m(this.checked)'>Mute alerts</label>"
         "<label>Alert on</label><select onchange='al(this.value)'>%s</select>"
         "<label>Proximity alert</label><select onchange='px(this.value)'>%s</select>"
@@ -734,6 +753,7 @@ static void handleRoot() {
         "function bt(c){G('/bigtext?v='+(c?1:0)+'&save=1')}"
         "function ro(v){G('/rotate?v='+v+'&save=1')}"
         "function u(v){G('/units?v='+v+'&save=1')}"
+        "function tu(v){G('/tempu?v='+v+'&save=1')}"
         "function al(v){G('/alerts?mode='+v+'&save=1')}"
         "function px(v){G('/alerts?prox='+v+'&save=1')}"
         "function gp(c){G('/gps?v='+(c?1:0)+'&save=1')}"
@@ -750,7 +770,7 @@ static void handleRoot() {
         tzopts.c_str(),
         g_brightnessDay, iopts.c_str(), g_clockOn ? "checked" : "", g_fdSleep ? "checked" : "", g_showSweep ? "checked" : "",
         g_showAirports ? "checked" : "", g_airportPins, g_hideGround ? "checked" : "", maopts.c_str(), mbopts.c_str(), g_milOnly ? "checked" : "",
-        tlopts.c_str(), mxopts.c_str(), g_bigText ? "checked" : "", topopts.c_str(), g_rotation, uopts.c_str(),
+        tlopts.c_str(), mxopts.c_str(), g_bigText ? "checked" : "", topopts.c_str(), g_rotation, uopts.c_str(), tuopts.c_str(),
         g_volume, g_muted ? "checked" : "", aopts.c_str(), popts.c_str(),
         g_settings.homeLat, g_settings.homeLon, (g_tz == TZ_STR ? 0 : 1));
     if (len >= (int)BUFSZ)   // truncated page = broken <script>; make it loud, not silent
@@ -903,6 +923,22 @@ static void handleUnits() {   // measurement units preset (live re-render)
             Preferences p;
             p.begin("capsuleradar", false);
             p.putInt("units", g_units);
+            p.end();
+        }
+    }
+    g_web.send(200, "text/plain", "ok");
+}
+
+static void handleTempUnit() {   // weather temperature unit (live re-render)
+    if (refuseUnlessPageFetch()) return;
+    if (g_web.hasArg("v")) {
+        g_tempUnit = constrain((int)g_web.arg("v").toInt(), 0, 2);
+        ui_set_temp_unit(g_tempUnit);
+        ui_on_data_updated();                  // re-render the weather view if it is on screen
+        if (g_web.hasArg("save")) {
+            Preferences p;
+            p.begin("capsuleradar", false);
+            p.putInt("tempu", g_tempUnit);
             p.end();
         }
     }
@@ -1200,6 +1236,28 @@ static void handleUpdateUpload() {
     }
 }
 
+// ---- WiFi: join the strongest access point, not the first one heard ----
+// The core's STA default is a fast scan, which joins the FIRST access point that answers with
+// our SSID. On a mesh (several nodes, one SSID, often one 2.4 GHz channel) that can be a far
+// node with a weak link while a strong one sits next to the radar. Scan every channel and pick
+// by signal instead; it costs a second or two at connect time.
+// setScanMethod/setSortMethod only apply when new credentials are entered (WiFi.begin(ssid,
+// pass)). Reconnecting with SAVED credentials (WiFiManager's autoConnect, our background
+// retry, the driver's auto-reconnect) reuses the stored driver config, so patch that too.
+static void wifi_prefer_strongest_ap() {
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+    if (!WiFi.mode(WIFI_STA)) return;             // the driver must be up to read its config
+    wifi_config_t conf;
+    if (esp_wifi_get_config(WIFI_IF_STA, &conf) != ESP_OK) return;
+    if (conf.sta.scan_method == WIFI_ALL_CHANNEL_SCAN &&
+        conf.sta.sort_method == WIFI_CONNECT_AP_BY_SIGNAL) return;   // already set: no flash write
+    conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    conf.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+    if (esp_wifi_set_config(WIFI_IF_STA, &conf) == ESP_OK)
+        Serial.println("[wifi] saved network set to join the strongest access point");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(200);
@@ -1272,6 +1330,7 @@ void setup() {
     radar::setThemeChangedCb(saveTheme);
     ui_set_range_cb(onRangeChange);              // on-screen zoom button
     ui_set_units(g_units);                       // apply saved unit preset
+    ui_set_temp_unit(g_tempUnit);                // and the weather temperature unit
     ui_set_range_km(g_settings.rangeKm);         // show the loaded range
     // (power-off button: registered below, only when the PMIC actually answered)
 
@@ -1327,6 +1386,7 @@ void setup() {
         Serial.println("[wifi] new credentials saved -> rebooting for a clean web/mDNS start");
         g_rebootAtMs = millis() + 2500;   // let the portal deliver its 'saved' page first
     });
+    wifi_prefer_strongest_ap();
     if (g_wm.autoConnect("CapsuleRadar-Setup")) {
         Serial.println("[wifi] connected");
     } else {
@@ -1381,6 +1441,7 @@ void setup() {
     });
     g_web.on("/gps", handleGps);
     g_web.on("/units", handleUnits);
+    g_web.on("/tempu", handleTempUnit);
     g_web.on("/update", HTTP_GET, handleUpdatePage);
     g_web.on("/update", HTTP_POST,
         []() {
@@ -1407,6 +1468,7 @@ void setup() {
 
 void loop() {
     display::loop();                // drive LVGL (render dirty areas + run timers)
+    audio_loop();                   // time the buzzer's beeps (boards with one)
     g_wm.process();                 // service the WiFi config portal (non-blocking)
     g_web.handleClient();           // serve the configuration web page
     if (g_useGps) gps_poll();       // pull NMEA from the LC76G (only when GPS auto-location is on)

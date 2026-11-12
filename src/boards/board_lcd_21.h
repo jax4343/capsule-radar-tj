@@ -33,7 +33,7 @@
 #define TCA9554_ADDR        0x20
 #define EXIO_LCD_RST        1              // ST7701 reset   (EXIO1)
 #define EXIO_TP_RST         2              // CST820 reset   (EXIO2)
-#define EXIO_AUX            8              // vendor init holds buzzer/aux line low
+#define EXIO_AUX            8              // active buzzer (high = tone); vendor init holds it low
 #define EXIO_LCD_CS         3              // ST7701 3-wire SPI chip-select (EXIO3)
 
 // ---------- Touch (CST820 capacitive, I2C) ----------
@@ -45,6 +45,7 @@
 // ---------- Peripherals ----------
 #define BOARD_HAS_PMIC      0
 #define BOARD_HAS_AUDIO     0
+#define BOARD_HAS_BUZZER    1              // alert beeps on the EXIO_AUX buzzer (audio.cpp)
 #define TOUCH_DRIVER_CST820 1
 #define ADSB_TASK_STACK_BYTES 32768 // IDF-mode TLS needs more stack than precompiled Arduino
 
@@ -57,9 +58,9 @@
 
 
 // Vendor RGB bus and timings (12 MHz pixel clock for PSRAM DMA headroom).
-#define RGB_PCLK_HZ   (12 * 1000 * 1000)   // 12 MHz (~44 Hz). Lower than the demo's 16 MHz so the
-                                            // direct-from-PSRAM DMA keeps up without a bounce buffer
-                                            // (no drift). Drop to 10 MHz if any drift remains.
+#define RGB_PCLK_HZ   (12 * 1000 * 1000)   // 12 MHz (~44 Hz). Lower than the demo's 16 MHz: gives the
+                                            // bounce-buffer refill (display_st7701.cpp) ~0.46 ms per
+                                            // 10 lines, slack for short flash ops that hold it off.
 #define RGB_HSYNC     38
 #define RGB_VSYNC     39
 #define RGB_DE        40
