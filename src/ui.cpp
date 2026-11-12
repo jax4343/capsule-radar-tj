@@ -1101,6 +1101,9 @@ void ui_create(void) {
     lv_obj_set_ext_click_area(s_zoomBtn, 18);   // invisibly enlarge the tap target (easier to hit)
     lv_obj_align(s_zoomBtn, LV_ALIGN_BOTTOM_MID, 0, -32);
     lv_obj_set_style_radius(s_zoomBtn, 18, 0);
+    // lv_btn_create keeps LVGL's default light-theme look, which puts a grey drop shadow 3 px
+    // below the box: a pale band along its bottom edge that the sweep mask (the box only) misses.
+    lv_obj_set_style_shadow_width(s_zoomBtn, 0, 0);
     lv_obj_set_style_bg_color(s_zoomBtn, UI_PANEL, 0);
     lv_obj_set_style_bg_opa(s_zoomBtn, 225, 0);
     lv_obj_set_style_border_color(s_zoomBtn, UI_GREEN, 0);
@@ -1236,6 +1239,7 @@ void ui_create(void) {
     lv_obj_set_ext_click_area(s_offBtn, 12);
     lv_obj_align(s_offBtn, LV_ALIGN_CENTER, 0, -150);
     lv_obj_set_style_radius(s_offBtn, 18, 0);
+    lv_obj_set_style_shadow_width(s_offBtn, 0, 0);       // no default-theme drop shadow (as the range button)
     lv_obj_set_style_bg_color(s_offBtn, UI_PANEL, 0);
     lv_obj_set_style_bg_opa(s_offBtn, 225, 0);
     lv_obj_set_style_border_color(s_offBtn, UI_EMERG, 0);
