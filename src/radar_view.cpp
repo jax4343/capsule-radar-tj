@@ -34,10 +34,10 @@
 #endif
 
 // ---- phosphor palette (mockup) ----
-#define COL_GREEN  lv_color_hex(0x1DFF86)
-#define COL_LEAD   lv_color_hex(0x3DFF9A)
-#define COL_INK    lv_color_hex(0xEAFFF3)
-#define COL_SOFT   lv_color_hex(0x9AFFC8)
+#define COL_GREEN  lv_color_hex(0x33FF55)
+#define COL_LEAD   lv_color_hex(0x70FF84)
+#define COL_INK    lv_color_hex(0xECFFEE)
+#define COL_SOFT   lv_color_hex(0xA8FFB4)
 #define COL_EMERG  lv_color_hex(0xFF5A3C)
 // Emergency glyph CORE. White on purpose: no altitude band uses white, so a red-ringed
 // white glyph cannot be confused with the plain red sub-3000 ft fill — two users (#25)
@@ -799,8 +799,8 @@ void setTheme(int t) {
             s_cRing = lv_color_hex(0xFFB23C); s_cLead = lv_color_hex(0xFFD27A);
             s_cInk  = lv_color_hex(0xFFE9C2); s_cSoft = lv_color_hex(0xFFC98A); break;
         case THEME_MILITARY:
-            s_cRing = lv_color_hex(0x49C46B); s_cLead = lv_color_hex(0x76E08C);
-            s_cInk  = lv_color_hex(0xE0FFE6); s_cSoft = lv_color_hex(0x9FD7A8); break;
+            s_cRing = lv_color_hex(0x4CC45A); s_cLead = lv_color_hex(0x7AE07C);
+            s_cInk  = lv_color_hex(0xE2FFE4); s_cSoft = lv_color_hex(0xA2D7A0); break;
         default:                                // phosphor (orb uses its own colors)
             s_cRing = COL_GREEN; s_cLead = COL_LEAD; s_cInk = COL_INK; s_cSoft = COL_SOFT; break;
     }

@@ -16,10 +16,12 @@
 #include <time.h>
 #include <vector>
 
-#define UI_GREEN lv_color_hex(0x1DFF86)
-#define UI_INK   lv_color_hex(0xEAFFF3)
-#define UI_SOFT  lv_color_hex(0x9AFFC8)
-#define UI_DIM   lv_color_hex(0x5F7A6C)
+// Green with little blue in it: the earlier mint (0x1DFF86) read as blue/cyan on thin vertical lines and text on
+// the AMOLED's subpixel layout (green outline top/bottom, blue on the sides).
+#define UI_GREEN lv_color_hex(0x33FF55)
+#define UI_INK   lv_color_hex(0xECFFEE)
+#define UI_SOFT  lv_color_hex(0xA8FFB4)
+#define UI_DIM   lv_color_hex(0x5F7A66)
 #define UI_PANEL lv_color_hex(0x0C160F)
 #define UI_EMERG lv_color_hex(0xFF5A3C)
 
