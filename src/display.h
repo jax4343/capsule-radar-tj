@@ -36,6 +36,11 @@ uint16_t rotation();
 bool sweepAvailable();          // buffers allocated: the compositor can own the sweep
 void sweepConfig(uint16_t ring565, uint16_t lead565, uint16_t ink565, bool sweep, bool pulse);
 void sweepTick();               // advance the sweep if a tick is due; no LVGL, no I2C (safe inside the GPS drain)
+// White-point correction: the percentage of green and blue kept on every pixel pushed (100 = no change; the
+// panel's white leans blue, so blue is turned down). Callable before begin(); once the panel is up it repaints
+// the screen at once. No effect on the LCD 2.1 (its display file has no correction).
+void setWhitePoint(uint8_t greenPct, uint8_t bluePct);
+
 float sweepAngleDeg();          // where the sweep line is now: degrees, 0 = up (logical), clockwise
 
 } // namespace display

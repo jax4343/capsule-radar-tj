@@ -76,9 +76,11 @@ static const float WEB_RANGE_KM[]   = {3 * NM_KM, 5 * NM_KM, 10 * NM_KM, 15 * NM
 #define BRIGHTNESS_DEFAULT  200            // 0..255, panel brightness via cmd 0x51
 // White-point correction for the CO5300 AMOLED: white and light text read blue. Every pixel pushed to the panel
 // has its green and blue scaled by these percentages (red untouched; black stays black). 100 = no change.
-// Lower PANEL_GAIN_B_PCT if white still looks blue, raise it (toward 100) if it turns yellow.
+// These are the defaults; the web page's Display card has sliders that override them (saved in NVS: wpG, wpB).
 #define PANEL_GAIN_G_PCT    85
 #define PANEL_GAIN_B_PCT    55
+#define WP_G_MIN            60   // lowest the web page's white-point sliders go (so a slider can't black the screen out)
+#define WP_B_MIN            30
 // Face-down sleep (QMI8658, logic in facedown_sleep.h): the IMU is read every
 // FACEDOWN_CHECK_MS, and FACEDOWN_COUNT face-down readings in a row with no touch in between
 // turn the screen off (~1.6 s). Accelerometer Z at ±2 g full scale: 16384 LSB/g.

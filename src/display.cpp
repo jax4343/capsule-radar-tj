@@ -49,9 +49,10 @@ static lv_color_t *s_frameBuf = nullptr;     // full logical framebuffer for arb
 // the way out. Applied here, the last step, in place on the block being pushed; s_phys and the sweep blends
 // stay in uncorrected colour, so nothing is corrected twice.
 static uint8_t s_gainG[64], s_gainB[32];
+static uint8_t s_wpG = PANEL_GAIN_G_PCT, s_wpB = PANEL_GAIN_B_PCT;   // percent kept; the web page can change them
 static void panel_gain_init() {
-    for (int i = 0; i < 64; ++i) s_gainG[i] = (uint8_t)((i * PANEL_GAIN_G_PCT + 50) / 100);
-    for (int i = 0; i < 32; ++i) s_gainB[i] = (uint8_t)((i * PANEL_GAIN_B_PCT + 50) / 100);
+    for (int i = 0; i < 64; ++i) s_gainG[i] = (uint8_t)((i * s_wpG + 50) / 100);
+    for (int i = 0; i < 32; ++i) s_gainB[i] = (uint8_t)((i * s_wpB + 50) / 100);
 }
 static inline void panel_correct(uint16_t *p, size_t n) {
     for (size_t i = 0; i < n; ++i) {
@@ -885,6 +886,15 @@ void sweepConfig(uint16_t ring565, uint16_t lead565, uint16_t ink565, bool sweep
     s_swWanted = sweep;
     s_pulseInk = ink565;
     s_pulseWanted = pulse;
+}
+void setWhitePoint(uint8_t greenPct, uint8_t bluePct) {
+    s_wpG = greenPct > 100 ? 100 : greenPct;
+    s_wpB = bluePct > 100 ? 100 : bluePct;
+    panel_gain_init();
+    if (s_gfx) {   // panel is up: redraw everything through the new tables
+        lv_obj_t *scr = lv_scr_act();
+        if (scr) lv_obj_invalidate(scr);
+    }
 }
 void sweepTick() { compose_step(); }
 bool sweepAvailable() { return sweep_ready(); }

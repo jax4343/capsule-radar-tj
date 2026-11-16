@@ -962,6 +962,8 @@ void setBrightness(uint8_t v) {
     s_touchQueue.setWakeOnly(v == 0);   // a dark panel takes a touch only as a wake-up (as display.cpp)
 }
 
+void setWhitePoint(uint8_t, uint8_t) {}   // no white-point correction on this panel
+
 void setRotation(uint16_t degrees) {
     s_rot = degrees % 360;
     const float radians = s_rot * ((float)M_PI / 180.0f);

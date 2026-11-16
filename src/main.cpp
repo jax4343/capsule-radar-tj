@@ -64,6 +64,7 @@ static AdsbClient            g_adsb;
 static RadarSettings         g_settings;
 static WiFiManager           g_wm;
 static int                   g_brightnessDay = BRIGHTNESS_DEFAULT;   // user brightness (web/NVS)
+static int                   g_wpG = PANEL_GAIN_G_PCT, g_wpB = PANEL_GAIN_B_PCT;   // white point: % of green / blue kept (web/NVS)
 static int                   g_volume = 60;                          // alert volume 0..100 (web/NVS)
 static bool                  g_muted  = false;                       // mute alert pings
 static int                   g_alertMode = 2;                        // 0=off 1=emergencies 2=new+emergencies 3=military+emergencies (web/NVS)
@@ -312,6 +313,8 @@ static void loadSettings() {
     g_settings.rotationDeg = normalizeTopDeg(p.getInt("topDeg", 0));   // compass bearing at the top of the scope
     // floor of 5: a stored 0 would boot with the panel dark forever, looking like a dead board
     g_brightnessDay    = constrain(p.getInt("bright", BRIGHTNESS_DEFAULT), 5, 255);
+    g_wpG              = constrain(p.getInt("wpG", PANEL_GAIN_G_PCT), WP_G_MIN, 100);
+    g_wpB              = constrain(p.getInt("wpB", PANEL_GAIN_B_PCT), WP_B_MIN, 100);
     g_volume           = p.getInt("vol", 60);
     g_muted            = p.getBool("mute", false);
     g_alertMode        = constrain(p.getInt("alertmode", 2), 0, 3);
@@ -591,6 +594,19 @@ static void handleRoot() {
         snprintf(o, sizeof(o), "<option value=%d%s>%s</option>", i, i == g_units ? " selected" : "", unames[i]);
         uopts += o;
     }
+    String wpRow;   // white-point sliders (CO5300 boards only: the LCD 2.1 has no correction)
+#if !defined(BOARD_LCD21)
+    {
+        char o[640];
+        snprintf(o, sizeof(o),
+            "<label>White point: blue kept (%d%%) &mdash; lower it if white looks blue</label>"
+            "<input type=range min=%d max=100 value='%d' oninput=\"w('b',this.value,0)\" onchange=\"w('b',this.value,1)\">"
+            "<label>White point: green kept (%d%%)</label>"
+            "<input type=range min=%d max=100 value='%d' oninput=\"w('g',this.value,0)\" onchange=\"w('g',this.value,1)\">",
+            g_wpB, WP_B_MIN, g_wpB, g_wpG, WP_G_MIN, g_wpG);
+        wpRow = o;
+    }
+#endif
     String topopts;   // compass direction at the top of the scope (g_settings.rotationDeg)
     for (int i = 0; i < TOP_POINTS_N; ++i) {
         char o[80];
@@ -728,6 +744,7 @@ static void handleRoot() {
         "<div class=card><div class=t>Display</div>"
         "<label>Brightness</label>"
         "<input type=range min=5 max=255 value='%d' oninput='b(this.value,0)' onchange='b(this.value,1)'>"
+        "%s"
         "<label>Clock or dim after</label><select onchange='d(this.value)'>%s</select>"
         "<label><input type=checkbox class=ck %s onchange='cl(this.checked)'>Show a clock instead of dimming</label>"
         "<label><input type=checkbox class=ck %s onchange='fd(this.checked)'>Screen off when placed face-down</label>"
@@ -777,6 +794,7 @@ static void handleRoot() {
         "fetch(p,{headers:{'" WEB_PAGE_HDR "':'1'}}).catch(function(){}).then(function(){"
         "var n=Q[k].n,f=Q[k].f;delete Q[k];if(n){SQ(k,n);Q[k].f=f}else if(f)f()})}"
         "function b(v,s){SQ('b','/bright?v='+v+(s?'&save=1':''))}"
+        "function w(k,v,s){SQ('w'+k,'/whitepoint?'+k+'='+v+(s?'&save=1':''))}"
         "function v(x,s){SQ('v','/vol?v='+x+(s?'&save=1':''))}"
         "function m(c){G('/vol?mute='+(c?1:0)+'&save=1')}"
         "function t(){if(Q.v)Q.v.f=function(){G('/vol?test=1')};else G('/vol?test=1')}"
@@ -811,7 +829,7 @@ static void handleRoot() {
         "if(b>=0)e.selectedIndex=b;})();</script></body></html>",
         g_settings.homeLat, g_settings.homeLon, gpsRow.c_str(), ropts.c_str(), topts.c_str(),
         tzopts.c_str(),
-        g_brightnessDay, iopts.c_str(), g_clockOn ? "checked" : "", g_fdSleep ? "checked" : "", g_showSweep ? "checked" : "",
+        g_brightnessDay, wpRow.c_str(), iopts.c_str(), g_clockOn ? "checked" : "", g_fdSleep ? "checked" : "", g_showSweep ? "checked" : "",
         g_showAirports ? "checked" : "", g_airportPins, g_hideGround ? "checked" : "", maopts.c_str(), mbopts.c_str(), g_milOnly ? "checked" : "",
         tlopts.c_str(), mxopts.c_str(), g_bigText ? "checked" : "", topopts.c_str(), g_rotation, uopts.c_str(), tuopts.c_str(),
         g_volume, g_muted ? "checked" : "", aopts.c_str(), popts.c_str(),
@@ -1152,6 +1170,25 @@ static void handlePinAirports() {
     g_web.send(200, "text/plain", msg);
 }
 
+#if !defined(BOARD_LCD21)
+static void handleWhitePoint() {   // white-point sliders (?b= blue kept %, ?g= green kept %), applied live
+    if (refuseUnlessPageFetch()) return;
+    if (g_web.hasArg("b") || g_web.hasArg("g")) {
+        if (g_web.hasArg("b")) g_wpB = constrain((int)g_web.arg("b").toInt(), WP_B_MIN, 100);
+        if (g_web.hasArg("g")) g_wpG = constrain((int)g_web.arg("g").toInt(), WP_G_MIN, 100);
+        display::setWhitePoint((uint8_t)g_wpG, (uint8_t)g_wpB);
+        if (g_web.hasArg("save")) {
+            Preferences p;
+            p.begin("capsuleradar", false);
+            p.putInt("wpG", g_wpG);
+            p.putInt("wpB", g_wpB);
+            p.end();
+        }
+    }
+    g_web.send(200, "text/plain", "ok");
+}
+#endif
+
 static void handleTopDir() {   // compass bearing at the top of the scope, applied live
     if (refuseUnlessPageFetch()) return;
     if (g_web.hasArg("v")) {
@@ -1328,6 +1365,7 @@ void setup() {
     // CO5300 AMOLED over QSPI + LVGL draw buffers in PSRAM, then a hello screen.
     // The panel is powered from the always-on DC1 rail, so it lights without the
     // PMIC. Touch (CST9217 indev) + AXP2101 come in later milestones.
+    display::setWhitePoint((uint8_t)g_wpG, (uint8_t)g_wpB);   // saved white point, before the first pixel is pushed
     if (!display::begin()) {
         Serial.println("[!] display::begin() failed — check QSPI pins / power.");
     } else if (display::sweepAvailable()) {
@@ -1471,6 +1509,9 @@ void setup() {
     g_web.on("/airports", handleAirports);
     g_web.on("/pinairports", handlePinAirports);
     g_web.on("/topdir", handleTopDir);
+#if !defined(BOARD_LCD21)
+    g_web.on("/whitepoint", handleWhitePoint);
+#endif
     g_web.on("/ground", handleGround);
     g_web.on("/altmin", handleAltMin);
     g_web.on("/altmax", handleAltMax);
