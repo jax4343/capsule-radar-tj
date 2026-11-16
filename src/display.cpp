@@ -45,7 +45,23 @@ static int32_t    s_rotSinQ16 = 0;
 static lv_color_t *s_rotBuf = nullptr;       // PSRAM scratch for rotated output (see begin())
 static lv_color_t *s_frameBuf = nullptr;     // full logical framebuffer for arbitrary-angle sampling
 
+// White-point correction (PANEL_GAIN_*): this panel's white leans blue, so green and blue are scaled down on
+// the way out. Applied here, the last step, in place on the block being pushed; s_phys and the sweep blends
+// stay in uncorrected colour, so nothing is corrected twice.
+static uint8_t s_gainG[64], s_gainB[32];
+static void panel_gain_init() {
+    for (int i = 0; i < 64; ++i) s_gainG[i] = (uint8_t)((i * PANEL_GAIN_G_PCT + 50) / 100);
+    for (int i = 0; i < 32; ++i) s_gainB[i] = (uint8_t)((i * PANEL_GAIN_B_PCT + 50) / 100);
+}
+static inline void panel_correct(uint16_t *p, size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+        const uint16_t v = p[i];
+        p[i] = (uint16_t)((v & 0xF800) | ((uint16_t)s_gainG[(v >> 5) & 63] << 5) | s_gainB[v & 31]);
+    }
+}
+
 static void panel_push(int16_t x, int16_t y, uint16_t *pixels, uint16_t w, uint16_t h) {
+    panel_correct(pixels, (size_t)w * h);
 #if (LV_COLOR_16_SWAP != 0)
     s_gfx->draw16bitBeRGBBitmap(x, y, pixels, w, h);
 #else
@@ -780,6 +796,7 @@ static void touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 namespace display {
 
 bool begin() {
+    panel_gain_init();   // before the first push
     Serial.println("[display] init CO5300 QSPI...");
     s_bus = new Arduino_ESP32QSPI(PIN_LCD_CS, PIN_LCD_SCLK,
                                   PIN_LCD_D0, PIN_LCD_D1, PIN_LCD_D2, PIN_LCD_D3);

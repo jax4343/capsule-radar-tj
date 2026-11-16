@@ -71,6 +71,11 @@ static const float WEB_RANGE_KM[]   = {3 * NM_KM, 5 * NM_KM, 10 * NM_KM, 15 * NM
 #define LV_COLOR_DEPTH_BITS 16
 // LCD_COL_OFFSET / LCD_ROW_OFFSET / LCD_QSPI_HZ are panel-specific -> board header.
 #define BRIGHTNESS_DEFAULT  200            // 0..255, panel brightness via cmd 0x51
+// White-point correction for the CO5300 AMOLED: white and light text read blue. Every pixel pushed to the panel
+// has its green and blue scaled by these percentages (red untouched; black stays black). 100 = no change.
+// Lower PANEL_GAIN_B_PCT if white still looks blue, raise it (toward 100) if it turns yellow.
+#define PANEL_GAIN_G_PCT    85
+#define PANEL_GAIN_B_PCT    55
 // Face-down sleep (QMI8658, logic in facedown_sleep.h): the IMU is read every
 // FACEDOWN_CHECK_MS, and FACEDOWN_COUNT face-down readings in a row with no touch in between
 // turn the screen off (~1.6 s). Accelerometer Z at ±2 g full scale: 16384 LSB/g.
